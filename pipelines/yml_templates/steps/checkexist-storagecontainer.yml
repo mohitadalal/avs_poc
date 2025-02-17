@@ -1,0 +1,59 @@
+parameters:
+- name: container_name
+  type: string
+  default: development
+- name: storage_account
+  type: string
+  default: stgvdi
+- name: resource_group
+  type: string
+  default: vdi
+- name: subscription_id
+  type: string
+  default: 7877d8aa-c51f-4741-b864-e77ef88cd435
+- name: return_variable
+  type: string
+  default: return
+- name: fail_task
+  type: boolean
+  default: True
+
+pool: ContainerInstance
+
+steps:
+- bash: |
+    az login --identity > /dev/null
+    echo "Check if Storage Account : ${{ parameters.storage_account }} exists in Resource Group: ${{ parameters.resource_group }} of Subscription: ${{ parameters.subscription_id }}"
+    az storage account show -g ${{ parameters.resource_group }} -n ${{ parameters.storage_account }} --subscription ${{ parameters.subscription_id }} > /dev/null 2>&1
+    if [[ $? -ne 0 ]]
+    then
+      echo "Storage Account Does Not Exist!!"
+      echo "##vso[task.setvariable variable=${{ parameters.return_variable }};isoutput=true]false"
+      if [[ "${{ parameters.fail_task }}" == "True" ]] 
+      then
+        echo "fail_task: ${{ parameters.fail_task}}"
+        exit 1
+      fi
+      exit 0
+    fi
+    
+    echo "Storage Account Exists !!!"
+    echo "Check if Container ${{ parameters.container_name }} exists in Storage Account : ${{ parameters.storage_account }}" 
+    
+    container=`az storage container exists --account-name ${{ parameters.storage_account }} --name ${{ parameters.container_name }} --query exists --only-show-errors`
+    if [[ $container != 'true' ]]
+    then
+      echo "Container Does Not Exist!!"
+      echo "##vso[task.setvariable variable=${{ parameters.return_variable }};isoutput=true]false"
+      if [[ "${{ parameters.fail_task }}"  == "True" ]] 
+      then
+        echo "fail_task: ${{ parameters.fail_task}}"
+        exit 1
+      fi
+      exit 0
+    fi
+    echo "Container Exists !!!"
+    echo "##vso[task.setvariable variable=${{ parameters.return_variable }};isoutput=true]true"
+  displayName: "Check Storage Container"
+  name: storageCheck
+

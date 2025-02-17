@@ -1,0 +1,28 @@
+parameters:
+- name: container_name
+  type: string
+  default: development
+- name: storage_account
+  type: string
+  default: stgvdi
+- name: blob_path
+  type: string
+  default: "con1_resource_group"
+- name: local_filepath
+  type: string
+  default: "blobFile.txt"
+- name: subscription_id
+  type: string
+  default: 7877d8aa-c51f-4741-b864-e77ef88cd435
+
+pool: ContainerInstance
+trigger: none
+
+steps:
+- bash: |
+    az login --identity > /dev/null
+    echo "Download Blob: ${{ parameters.blob_path }} from Container Name: ${{ parameters.container_name }} under Subscription: ${{ parameters.subscription_id }} to Location: ${{ parameters.local_filepath }}"
+    az storage blob download -c ${{ parameters.container_name }} -n ${{ parameters.blob_path }} --account-name ${{ parameters.storage_account }} -f ${{ parameters.local_filepath }} --subscription ${{ parameters.subscription_id }} --overwrite true --only-show-errors
+  displayName: "Download Blob"
+  name: download_blob
+

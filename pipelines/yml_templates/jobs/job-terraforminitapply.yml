@@ -1,0 +1,69 @@
+parameters:
+- name: deployment_tag
+  type: string
+- name: resource_name
+  type: string
+- name: version
+  type: string
+- name: var_file
+  type: string
+- name: provider
+  type: object
+- name: backend
+  type: object
+- name: action
+  type: string
+  default: apply
+  values:
+  - apply
+  - destroy
+- name: depends_on
+  type: object
+  default: ["pullandpublish"]
+
+jobs:
+- job: "apply_${{ parameters.resource_name }}"
+  dependsOn: "ManualValidation"
+  displayName: "Deploying ${{ parameters.deployment_tag }} ${{ parameters.resource_name }}"
+  steps:
+  - checkout: self
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      buildType: 'current'
+      artifactName: 'Ploceus'
+      itemPattern: 'azure/${{ parameters.resource_name }}/${{ parameters.version }}/**/*'
+      targetPath: '$(system.defaultworkingdirectory)/module_downloaded'
+
+  - template: ../steps/make-terraformdirectory.yml
+    parameters:
+      module_path: $(system.defaultworkingdirectory)/module_downloaded/azure/${{ parameters.resource_name }}/${{ parameters.version }}
+      tfvars_path: $(system.defaultworkingdirectory)/${{ parameters.var_file }}
+      backend_path: $(system.defaultworkingdirectory)/${{ parameters.backend.backend_file }}
+      provider_path: $(system.defaultworkingdirectory)/${{ parameters.provider.file }}
+
+  - template: ../steps/terraform-initazure.yml
+    parameters:
+      terraform_directory: "$(move_files.terraform_resource_path_variable)"
+      backend_tenant_id: "${{ parameters.backend.backend_tenant_id }}"
+      backend_subscription_id: "${{ parameters.backend.backend_subscription_id }}"
+      backend_state_file_resource_group_name: "${{ parameters.backend.state_file_resource_group_name }}"
+      backend_state_file_storage_account : "${{ parameters.backend.state_file_storage_account }}"
+      backend_state_file_container: "${{ parameters.backend.state_file_container }}"
+      backend_state_file_name: "${{ parameters.backend.state_file_name }}"
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      buildType: 'current'
+      artifactName: 'Plan_${{ parameters.deployment_tag }}_${{ parameters.resource_name }}'
+      targetPath: '$(system.defaultworkingdirectory)/module_downloaded'
+  
+  - template: ../steps/terraform-applydestroy.yml
+    parameters:
+      terraform_directory: "$(move_files.terraform_resource_path_variable)"
+      plan_filepath: "$(system.defaultworkingdirectory)/module_downloaded/${{ parameters.deployment_tag }}_${{ parameters.resource_name }}.tfplan"
+      action: ${{ parameters.action }}
+      provider_configs:
+        provider_subscription_id: "${{ parameters.provider.provider_subscription_id }}"
+        provider_tenant_id: "${{ parameters.provider.provider_tenant_id }}"
+        
+#      itemPattern: '${{ parameters.resource_name }}/${{ parameters.version }}.tfplan'

@@ -1,0 +1,31 @@
+parameters:
+- name: terraform_directory
+  type: string
+  default: "azure/resource_group/v1.1.0/example" 
+- name: plan_filepath
+  type: string
+  default: "/azp/_work/_temp/plan_file.tfplan" 
+- name: action
+  type: string
+  default: "apply" 
+  values:
+  - apply
+  - destroy
+
+steps:
+- task: Bash@3
+  displayName: ${{ parameters.action }}
+  inputs:
+    targetType: 'inline'
+    script: |
+      az login --service-principal --username $ARM_CLIENT_ID --password $ARM_CLIENT_SECRET --tenant $ARM_TENANT_ID
+      az account set --subscription $ARM_SUBSCRIPTION_ID
+    displayName: 'Configuring Service Principal'
+    name: 'Service_Principal_Configuring'
+    enabled: true
+    workingDirectory: '$(System.DefaultWorkingDirectory)/terraform_create/'
+    env:
+      ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+      ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+      ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+      ARM_TENANT_ID: $(ARM_TENANT_ID)

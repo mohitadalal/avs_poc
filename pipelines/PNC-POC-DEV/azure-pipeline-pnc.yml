@@ -1,0 +1,121 @@
+# Pipeline for Deploying Management Groups and Hierarchy
+name: PNC_POC
+trigger: none
+
+# resources:
+#   repositories:
+#   - repository: ploceus
+#     type: github
+#     name: cloud-transformation/ploceus
+#     endpoint: cloud-transformation
+
+parameters:
+  - name: action
+    type: string
+    values:
+      - apply
+      - destroy
+    displayName: Action
+
+pr: none
+variables:
+  - group: GLZ-Pipeline-VG
+
+pool: alg-mgmt
+
+stages:
+  - stage: fetch_modules
+    displayName: "Fetching Modules"
+    jobs:
+      - job: pullandpublish
+        displayName: "Publishing Modules"
+        steps:
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: "$(system.defaultworkingdirectory)"
+              artifact: "Ploceus"
+              publishLocation: "pipeline"
+
+  - template: ./azure-pipeline-pnc-template.yml
+    parameters:
+      environment: pnc
+      provider_subscription_id: $(pnc_subscription_id)
+      provider_tenant_id: $(pnc_tenant_id)
+      action: ${{ parameters.action }}
+      backend:
+        backend_subscription_id: $(pnc_backend_subscription_id)
+        backend_tenant_id: $(pnc_backend_tenant_id)
+        state_file_resource_group_name: $(pnc_state_file_resource_group_name)
+        state_file_storage_account: $(pnc_state_file_storage_account)
+        state_file_container: $(pnc_state_file_container)
+      modules:
+        - name: resource_group
+          version: v1.3.0
+          stageName: pnc_resource_group
+          skip: false
+          varfile: "pnc_resource_group.tfvars"
+          approvalRequired: true
+          dependsOn: ["none"]
+        - name: virtual_network
+          version: v1.3.0
+          stageName: pnc_vnet
+          skip: false
+          varfile: "pnc_virtual_network.tfvars"
+          approvalRequired: false
+          dependsOn: ["pnc_resource_group"]
+        - name: subnet
+          version: v1.3.0
+          stageName: pnc_subnet
+          skip: false
+          varfile: "pnc_subnet.tfvars"
+          approvalRequired: false
+          dependsOn: ["pnc_vnet"]
+        - name: container_registry
+          version: v1.3.0
+          stageName: pnc_container_registry
+          skip: false
+          varfile: "pnc_container_registry.tfvars"
+          approvalRequired: false
+          dependsOn: ["pnc_subnet"]
+        - name: kubernetes_cluster
+          version: v1.3.0
+          stageName: pnc_kubernetes_cluster
+          skip: false
+          varfile: "pnc_kubernetes_cluster.tfvars"
+          approvalRequired: false
+          dependsOn: ["pnc_container_registry"]
+        - name: kubernetes_cluster_node_pool
+          version: v1.3.0
+          stageName: pnc_kubernetes_cluster_node_pool
+          skip: false
+          varfile: "pnc_kubernetes_cluster_node_pool.tfvars"
+          approvalRequired: false
+          dependsOn: ["pnc_kubernetes_cluster"]
+        - name: service_plan
+          version: v1.3.0
+          stageName: pnc_service_plan
+          skip: false
+          varfile: "pnc_app_service_plan.tfvars"
+          approvalRequired: false
+          dependsOn: ["pnc_resource_group"]
+        # - name: windows_function_app
+        #   version: v1.2.0
+        #   stageName: pnc_windows_function_app
+        #   skip: false
+        #   varfile: "pnc_windows_function_app.tfvars"
+        #   approvalRequired: false
+        #   dependsOn: ["pnc_service_plan"]
+        - name: container_group
+          version: v1.3.0
+          stageName: pnc_container_group
+          skip: false
+          varfile: "pnc_container_group.tfvars"
+          approvalRequired: false
+          dependsOn: ["pnc_container_registry"]
+        - name: windows_web_app
+          version: v1.3.0
+          stageName: pnc_windows_web_app
+          skip: false
+          varfile: "pnc_windows_web_app.tfvars"
+          approvalRequired: false
+          dependsOn: ["pnc_service_plan", "pnc_container_registry"]
